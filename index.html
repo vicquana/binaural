@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OOBE Binaural Beat Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e; /* Deep space color */
+            color: #e4e4e7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background-color: #272742;
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .control-button {
+            transition: all 0.2s;
+            box-shadow: 0 4px #0f0f18;
+            transform: translateY(-2px);
+        }
+        .control-button:active {
+            box-shadow: none;
+            transform: translateY(0);
+        }
+        /* Custom radio button styling for mode selection and channel preference */
+        .radio-label {
+            display: block;
+            padding: 0.75rem 0.5rem;
+            background-color: #3b3b64;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            text-align: center;
+            transition: background-color 0.2s, box-shadow 0.2s;
+            font-size: 0.9rem;
+        }
+        input[type="radio"]:checked + .radio-label {
+            background-color: #6d28d9; /* Purple accent */
+            box-shadow: 0 0 10px rgba(109, 40, 217, 0.7);
+            font-weight: 600;
+        }
+        /* Slider styling */
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: #3b3b64;
+            border-radius: 5px;
+            -webkit-appearance: none;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #8b5cf6; /* Indigo/Purple thumb */
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="text-3xl font-extrabold text-center mb-4 text-indigo-300">Brainwave Entrainment Frequencies</h1>
+    <p class="text-sm text-center mb-6 text-gray-400">
+        **Headphones Required.** Select a mode to set the **Beat Frequency** (the difference) and use the slider to set the **Carrier Frequency** ($100 \text{ Hz}$ to $500 \text{ Hz}$).
+    </p>
+
+    <!-- State Selection (Defines the Beat Frequency) -->
+    <h2 class="text-xl font-semibold mb-3 text-indigo-400">1. Select Brainwave State (Beat $\text{Hz}$)</h2>
+    <div class="grid grid-cols-3 gap-3 mb-8">
+        <div>
+            <input type="radio" id="mode_theta" name="mode" value="5.5" class="hidden" data-name="Theta" checked>
+            <label for="mode_theta" class="radio-label">
+                <span class="font-bold">Theta</span><br>($5.5 \text{ Hz}$)
+            </label>
+        </div>
+        <div>
+            <input type="radio" id="mode_alpha" name="mode" value="10.0" class="hidden" data-name="Alpha">
+            <label for="mode_alpha" class="radio-label">
+                <span class="font-bold">Alpha</span><br>($10.0 \text{ Hz}$)
+            </label>
+        </div>
+        <div>
+            <input type="radio" id="mode_delta" name="mode" value="2.5" class="hidden" data-name="Delta">
+            <label for="mode_delta" class="radio-label">
+                <span class="font-bold">Delta</span><br>($2.5 \text{ Hz}$)
+            </label>
+        </div>
+    </div>
+    
+    <!-- Channel Preference (Defines which ear gets the higher frequency) -->
+    <h2 class="text-xl font-semibold mb-3 text-indigo-400">2. Channel Preference</h2>
+    <div class="grid grid-cols-2 gap-3 mb-8">
+        <div>
+            <input type="radio" id="channel_left" name="channel" value="left" class="hidden" data-label="Left Higher" checked>
+            <label for="channel_left" class="radio-label">
+                <span class="font-bold">Left Higher</span>
+            </label>
+        </div>
+        <div>
+            <input type="radio" id="channel_right" name="channel" value="right" class="hidden" data-label="Right Higher">
+            <label for="channel_right" class="radio-label">
+                <span class="font-bold">Right Higher</span>
+            </label>
+        </div>
+    </div>
+
+
+    <!-- Carrier Frequency Slider -->
+    <h2 class="text-xl font-semibold mb-3 text-indigo-400">3. Adjust Carrier Frequency (Base $\text{Hz}$)</h2>
+    <div class="flex justify-between text-sm text-gray-400 mb-1">
+        <span>$100 \text{ Hz}$</span>
+        <span id="carrierValue" class="font-bold text-lg text-white">432 Hz</span>
+        <span>$500 \text{ Hz}$</span>
+    </div>
+    <input type="range" id="carrierSlider" min="100" max="500" value="432" step="1" class="mb-8">
+
+    <!-- Controls -->
+    <div class="flex flex-col items-center space-y-4">
+        <button id="startButton" class="control-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-xl w-full text-lg">
+            Start Tone
+        </button>
+        <button id="stopButton" class="control-button bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-xl w-full text-lg" disabled>
+            Stop Tone
+        </button>
+    </div>
+
+    <p id="status" class="text-center mt-6 text-yellow-300 font-medium">Status: Stopped. Theta (Beat $5.5 \text{ Hz}$). Carrier $432 \text{ Hz}$.</p>
+</div>
+
+<script>
+    let isPlaying = false;
+    let oscL, oscR;
+    let pannerL, pannerR;
+    const statusElement = document.getElementById('status');
+    const carrierSlider = document.getElementById('carrierSlider');
+    const carrierValueDisplay = document.getElementById('carrierValue');
+    const modeRadios = document.querySelectorAll('input[name="mode"]');
+    const channelRadios = document.querySelectorAll('input[name="channel"]');
+
+    // Helper function to get the current carrier, beat, and channel preference
+    function getCurrentFrequencies() {
+        const carrier = parseFloat(carrierSlider.value);
+        const selectedMode = document.querySelector('input[name="mode"]:checked');
+        const beat = parseFloat(selectedMode.value);
+        const modeName = selectedMode.dataset.name;
+        
+        const selectedChannel = document.querySelector('input[name="channel"]:checked');
+        const channelLabel = selectedChannel.dataset.label;
+        
+        return { carrier, beat, modeName, channelLabel };
+    }
+
+    // Function to update the status display
+    function updateStatus(state) {
+        const { carrier, beat, modeName, channelLabel } = getCurrentFrequencies();
+        
+        // Determine which ear is higher for status display
+        const isRightHigher = channelLabel === 'Right Higher';
+        const freqL = isRightHigher ? carrier : carrier + beat;
+        const freqR = isRightHigher ? carrier + beat : carrier;
+        
+        const earStatus = `Left ${freqL.toFixed(1)} Hz / Right ${freqR.toFixed(1)} Hz`;
+
+        if (state === 'playing') {
+             statusElement.textContent = `Status: Playing ${modeName} (Beat ${beat.toFixed(1)} Hz). ${earStatus}`;
+        } else {
+             statusElement.textContent = `Status: Stopped. ${modeName} (Beat ${beat.toFixed(1)} Hz). Carrier ${carrier} Hz. (${channelLabel})`;
+        }
+        carrierValueDisplay.textContent = `${carrier} Hz`;
+    }
+
+    // Initialize Tone.js components
+    function setupTone() {
+        if (!Tone.context.state || Tone.context.state === 'closed') {
+            Tone.context.resume();
+        }
+
+        // 1. Create Stereo Pannners (to ensure left goes fully left and right fully right)
+        pannerL = new Tone.Panner(-1).toDestination(); // Left channel
+        pannerR = new Tone.Panner(1).toDestination();  // Right channel
+        
+        // 2. Create two separate oscillators (Sine wave is typical for these tones)
+        oscL = new Tone.Oscillator(0, "sine").connect(pannerL);
+        oscR = new Tone.Oscillator(0, "sine").connect(pannerR);
+    }
+
+    // Function to calculate and set the frequencies based on the current selection
+    function setFrequencies() {
+        const { carrier, beat, channelLabel } = getCurrentFrequencies();
+        
+        let freqL = carrier;
+        let freqR = carrier;
+
+        // Apply the beat frequency based on the channel preference
+        if (channelLabel === 'Right Higher') {
+            freqR = carrier + beat;
+        } else {
+            // Default to Left Higher
+            freqL = carrier + beat;
+        }
+
+        if (oscL && oscR) {
+            oscL.frequency.setValueAtTime(freqL, Tone.context.currentTime);
+            oscR.frequency.setValueAtTime(freqR, Tone.context.currentTime);
+        }
+        updateStatus('playing');
+    }
+
+    // Function to start the audio
+    async function startTone() {
+        if (isPlaying) return;
+
+        try {
+            await Tone.start();
+            setupTone();
+            
+            setFrequencies();
+
+            // Start the oscillators after setting the initial frequencies
+            oscL.start();
+            oscR.start();
+            isPlaying = true;
+
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('stopButton').disabled = false;
+            
+        } catch (error) {
+            console.error("Error starting Tone.js:", error);
+            statusElement.textContent = 'Error starting audio. Check console.';
+        }
+    }
+
+    // Function to stop the audio
+    function stopTone() {
+        if (!isPlaying) return;
+        
+        if (oscL) oscL.stop();
+        if (oscR) oscR.stop();
+        
+        // Disconnect to clean up resources
+        if (oscL) oscL.dispose();
+        if (oscR) oscR.dispose();
+        if (pannerL) pannerL.dispose();
+        if (pannerR) pannerR.dispose();
+
+        isPlaying = false;
+        document.getElementById('startButton').disabled = false;
+        document.getElementById('stopButton').disabled = true;
+        updateStatus('stopped'); // Update status on stop
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('startButton').addEventListener('click', startTone);
+    document.getElementById('stopButton').addEventListener('click', stopTone);
+
+    // Listener for Carrier Slider
+    carrierSlider.addEventListener('input', () => {
+        carrierValueDisplay.textContent = `${carrierSlider.value} Hz`;
+        if (isPlaying) {
+            setFrequencies(); // Update tone in real-time if playing
+        }
+        updateStatus(isPlaying ? 'playing' : 'stopped'); // Update status text
+    });
+
+    // Listener for Mode Selection (Theta/Alpha/Delta)
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (isPlaying) {
+                setFrequencies(); // Update tone in real-time if playing
+            }
+            updateStatus(isPlaying ? 'playing' : 'stopped'); // Update status text
+        });
+    });
+
+    // Listener for Channel Preference (Left Higher / Right Higher)
+    channelRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (isPlaying) {
+                setFrequencies(); // Update tone in real-time if playing
+            }
+            updateStatus(isPlaying ? 'playing' : 'stopped'); // Update status text
+        });
+    });
+
+    // Initial status update on load
+    window.addEventListener('load', () => {
+        updateStatus('stopped');
+    });
+
+</script>
+
+</body>
+</html>
