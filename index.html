@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OOBE Binaural Beat Generator</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
     <link
@@ -98,7 +99,7 @@
 
       <!-- State Selection (Defines the Beat Frequency) -->
       <h2 class="text-xl font-semibold mb-3 text-indigo-400">
-        1. Select Brainwave State (Beat $\text{Hz}$)
+        1. Select Brainwave State (Beat Hz)
       </h2>
       <div class="grid grid-cols-3 gap-3 mb-8">
         <div>
@@ -112,7 +113,8 @@
             checked
           />
           <label for="mode_theta" class="radio-label">
-            <span class="font-bold">Theta</span><br />($4 \text{ Hz}$)
+            <span class="font-bold" data-mode-name></span><br />
+            <span data-mode-frequency></span>
           </label>
         </div>
         <div>
@@ -125,7 +127,8 @@
             data-name="Alpha"
           />
           <label for="mode_alpha" class="radio-label">
-            <span class="font-bold">Alpha</span><br />($10.0 \text{ Hz}$)
+            <span class="font-bold" data-mode-name></span><br />
+            <span data-mode-frequency></span>
           </label>
         </div>
         <div>
@@ -138,7 +141,8 @@
             data-name="Delta"
           />
           <label for="mode_delta" class="radio-label">
-            <span class="font-bold">Delta</span><br />($2 \text{ Hz}$)
+            <span class="font-bold" data-mode-name></span><br />
+            <span data-mode-frequency></span>
           </label>
         </div>
       </div>
@@ -158,14 +162,12 @@
 
       <!-- Carrier Frequency Slider -->
       <h2 class="text-xl font-semibold mb-3 text-indigo-400">
-        3. Adjust Carrier Frequency (Base $\text{Hz}$)
+        3. Adjust Carrier Frequency (Base Hz)
       </h2>
       <div class="flex justify-between text-sm text-gray-400 mb-1">
-        <span>$100 \text{ Hz}$</span>
-        <span id="carrierValue" class="font-bold text-lg text-white"
-          >232 Hz</span
-        >
-        <span>$500 \text{ Hz}$</span>
+        <span id="carrierMinLabel"></span>
+        <span id="carrierValue" class="font-bold text-lg text-white"></span>
+        <span id="carrierMaxLabel"></span>
       </div>
       <input
         type="range"
@@ -188,8 +190,7 @@
       </div>
 
       <p id="status" class="text-center mt-6 text-yellow-300 font-medium">
-        Status: Stopped. Theta (Beat $4.0 \text{ Hz}$). Carrier $232 \text{
-        Hz}$. (Left Higher)
+        Status: Initializing...
       </p>
     </div>
 
@@ -201,9 +202,39 @@
       const statusElement = document.getElementById("status");
       const carrierSlider = document.getElementById("carrierSlider");
       const carrierValueDisplay = document.getElementById("carrierValue");
+      const carrierMinLabel = document.getElementById("carrierMinLabel");
+      const carrierMaxLabel = document.getElementById("carrierMaxLabel");
       const modeRadios = document.querySelectorAll('input[name="mode"]');
       const channelToggleButton = document.getElementById("channelToggle");
       const toggleToneButton = document.getElementById("toggleToneButton");
+
+      function updateModeLabels() {
+        modeRadios.forEach((radio) => {
+          const label = document.querySelector(`label[for="${radio.id}"]`);
+          if (!label) return;
+
+          const nameElement = label.querySelector('[data-mode-name]');
+          if (nameElement) {
+            nameElement.textContent = radio.dataset.name || "";
+          }
+
+          const frequencyElement = label.querySelector('[data-mode-frequency]');
+          if (frequencyElement) {
+            const freq = parseFloat(radio.value);
+            frequencyElement.textContent = `(${freq.toFixed(1)} Hz)`;
+          }
+        });
+      }
+
+      function updateCarrierLabels() {
+        if (carrierMinLabel) {
+          carrierMinLabel.textContent = `${carrierSlider.min} Hz`;
+        }
+        if (carrierMaxLabel) {
+          carrierMaxLabel.textContent = `${carrierSlider.max} Hz`;
+        }
+        carrierValueDisplay.textContent = `${carrierSlider.value} Hz`;
+      }
 
       // Helper function to get the current carrier, beat, and channel preference
       function getCurrentFrequencies() {
@@ -373,7 +404,7 @@
       });
       // Listener for Carrier Slider
       carrierSlider.addEventListener("input", () => {
-        carrierValueDisplay.textContent = `${carrierSlider.value} Hz`;
+        updateCarrierLabels();
         if (isPlaying) {
           setFrequencies(); // Update tone in real-time if playing
         }
@@ -402,6 +433,8 @@
 
       // Initial status update on load
       window.addEventListener("load", () => {
+        updateModeLabels();
+        updateCarrierLabels();
         updateStatus("stopped");
         updateToneButton();
         updateChannelToggle();
