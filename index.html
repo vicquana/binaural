@@ -40,7 +40,7 @@
         box-shadow: none;
         transform: translateY(0);
       }
-      /* Custom radio button styling for mode selection and channel preference */
+      /* Custom radio button styling for channel preference */
       .radio-label {
         display: block;
         padding: 0.75rem 0.5rem;
@@ -93,59 +93,28 @@
       <h1 class="text-3xl font-extrabold text-center mb-4 text-indigo-300">
         Brainwave Entrainment Frequencies
       </h1>
-      <strong>Headphones Required.</strong> Select a mode to set the
-      <strong>Beat Frequency</strong> (the difference) and use the slider to set
-      the <strong>Carrier Frequency</strong> (100&nbsp;Hz to 500&nbsp;Hz).
+      <strong>Headphones Required.</strong> Use the sliders to set the
+      <strong>Beat Frequency</strong> (difference) and the
+      <strong>Carrier Frequency</strong> (base tone).
 
-      <!-- State Selection (Defines the Beat Frequency) -->
+      <!-- Beat Frequency Slider -->
       <h2 class="text-xl font-semibold mb-3 text-indigo-400">
-        1. Select Brainwave State (Beat Hz)
+        1. Adjust Beat Frequency (Difference)
       </h2>
-      <div class="grid grid-cols-3 gap-3 mb-8">
-        <div>
-          <input
-            type="radio"
-            id="mode_theta"
-            name="mode"
-            value="4"
-            class="hidden"
-            data-name="Theta"
-            checked
-          />
-          <label for="mode_theta" class="radio-label">
-            <span class="font-bold" data-mode-name></span><br />
-            <span data-mode-frequency></span>
-          </label>
-        </div>
-        <div>
-          <input
-            type="radio"
-            id="mode_alpha"
-            name="mode"
-            value="10.0"
-            class="hidden"
-            data-name="Alpha"
-          />
-          <label for="mode_alpha" class="radio-label">
-            <span class="font-bold" data-mode-name></span><br />
-            <span data-mode-frequency></span>
-          </label>
-        </div>
-        <div>
-          <input
-            type="radio"
-            id="mode_delta"
-            name="mode"
-            value="2"
-            class="hidden"
-            data-name="Delta"
-          />
-          <label for="mode_delta" class="radio-label">
-            <span class="font-bold" data-mode-name></span><br />
-            <span data-mode-frequency></span>
-          </label>
-        </div>
+      <div class="flex justify-between text-sm text-gray-400 mb-1">
+        <span id="beatMinLabel"></span>
+        <span id="beatValue" class="font-bold text-lg text-white"></span>
+        <span id="beatMaxLabel"></span>
       </div>
+      <input
+        type="range"
+        id="beatSlider"
+        min="1"
+        max="15"
+        value="4"
+        step="0.1"
+        class="mb-8"
+      />
 
       <!-- Channel Preference (Defines which ear gets the higher frequency) -->
       <h2 class="text-xl font-semibold mb-3 text-indigo-400">
@@ -200,30 +169,25 @@
       let pannerL, pannerR;
       let channelPreference = "left";
       const statusElement = document.getElementById("status");
+      const beatSlider = document.getElementById("beatSlider");
+      const beatValueDisplay = document.getElementById("beatValue");
+      const beatMinLabel = document.getElementById("beatMinLabel");
+      const beatMaxLabel = document.getElementById("beatMaxLabel");
       const carrierSlider = document.getElementById("carrierSlider");
       const carrierValueDisplay = document.getElementById("carrierValue");
       const carrierMinLabel = document.getElementById("carrierMinLabel");
       const carrierMaxLabel = document.getElementById("carrierMaxLabel");
-      const modeRadios = document.querySelectorAll('input[name="mode"]');
       const channelToggleButton = document.getElementById("channelToggle");
       const toggleToneButton = document.getElementById("toggleToneButton");
 
-      function updateModeLabels() {
-        modeRadios.forEach((radio) => {
-          const label = document.querySelector(`label[for="${radio.id}"]`);
-          if (!label) return;
-
-          const nameElement = label.querySelector('[data-mode-name]');
-          if (nameElement) {
-            nameElement.textContent = radio.dataset.name || "";
-          }
-
-          const frequencyElement = label.querySelector('[data-mode-frequency]');
-          if (frequencyElement) {
-            const freq = parseFloat(radio.value);
-            frequencyElement.textContent = `(${freq.toFixed(1)} Hz)`;
-          }
-        });
+      function updateBeatLabels() {
+        if (beatMinLabel) {
+          beatMinLabel.textContent = `${beatSlider.min} Hz`;
+        }
+        if (beatMaxLabel) {
+          beatMaxLabel.textContent = `${beatSlider.max} Hz`;
+        }
+        beatValueDisplay.textContent = `${parseFloat(beatSlider.value).toFixed(1)} Hz`;
       }
 
       function updateCarrierLabels() {
@@ -239,11 +203,8 @@
       // Helper function to get the current carrier, beat, and channel preference
       function getCurrentFrequencies() {
         const carrier = parseFloat(carrierSlider.value);
-        const selectedMode = document.querySelector(
-          'input[name="mode"]:checked'
-        );
-        const beat = parseFloat(selectedMode.value);
-        const modeName = selectedMode.dataset.name;
+        const beat = parseFloat(beatSlider.value);
+        const modeName = `${beat.toFixed(1)} Hz Beat`;
 
         const channelLabel =
           channelPreference === "left" ? "Left Higher" : "Right Higher";
@@ -306,13 +267,9 @@
         )} Hz`;
 
         if (state === "playing") {
-          statusElement.textContent = `Status: Playing ${modeName} (Beat ${beat.toFixed(
-            1
-          )} Hz). ${earStatus}`;
+          statusElement.textContent = `Status: Playing ${modeName}. ${earStatus}`;
         } else {
-          statusElement.textContent = `Status: Stopped. ${modeName} (Beat ${beat.toFixed(
-            1
-          )} Hz). Carrier ${carrier} Hz. (${channelLabel})`;
+          statusElement.textContent = `Status: Stopped. ${modeName}. Carrier ${carrier} Hz. (${channelLabel})`;
         }
         carrierValueDisplay.textContent = `${carrier} Hz`;
       }
@@ -411,14 +368,13 @@
         updateStatus(isPlaying ? "playing" : "stopped"); // Update status text
       });
 
-      // Listener for Mode Selection (Theta/Alpha/Delta)
-      modeRadios.forEach((radio) => {
-        radio.addEventListener("change", () => {
-          if (isPlaying) {
-            setFrequencies(); // Update tone in real-time if playing
-          }
-          updateStatus(isPlaying ? "playing" : "stopped"); // Update status text
-        });
+      // Listener for Beat Slider
+      beatSlider.addEventListener("input", () => {
+        updateBeatLabels();
+        if (isPlaying) {
+          setFrequencies();
+        }
+        updateStatus(isPlaying ? "playing" : "stopped");
       });
 
       // Listener for Channel Preference Toggle
@@ -433,7 +389,7 @@
 
       // Initial status update on load
       window.addEventListener("load", () => {
-        updateModeLabels();
+        updateBeatLabels();
         updateCarrierLabels();
         updateStatus("stopped");
         updateToneButton();
