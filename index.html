@@ -148,6 +148,23 @@
         class="mb-8"
       />
 
+      <!-- Waveform Selection -->
+      <h2 class="text-xl font-semibold mb-3 text-indigo-400">
+        4. Waveform / Noise Type
+      </h2>
+      <select
+        id="waveformSelect"
+        class="w-full bg-[#3b3b64] text-white p-3 rounded-xl mb-8 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      >
+        <option value="sine">Sine (classic binaural)</option>
+        <option value="triangle">Triangle</option>
+        <option value="square">Square</option>
+        <option value="isochronic">Isochronic Pulses</option>
+        <option value="pink-noise">Pink Noise</option>
+        <option value="brown-noise">Brown Noise</option>
+        <option value="green-noise">Green Noise</option>
+      </select>
+
       <!-- Controls -->
       <div class="flex flex-col items-center space-y-4">
         <button
@@ -167,6 +184,9 @@
       let isPlaying = false;
       let oscL, oscR;
       let pannerL, pannerR;
+      let isoGainL, isoGainR, isoLfo;
+      let noiseGainL, noiseGainR;
+      let noiseFilterL, noiseFilterR;
       let channelPreference = "left";
       const statusElement = document.getElementById("status");
       const beatSlider = document.getElementById("beatSlider");
@@ -179,6 +199,17 @@
       const carrierMaxLabel = document.getElementById("carrierMaxLabel");
       const channelToggleButton = document.getElementById("channelToggle");
       const toggleToneButton = document.getElementById("toggleToneButton");
+      const waveformSelect = document.getElementById("waveformSelect");
+
+      const waveformLabels = {
+        sine: "Sine",
+        triangle: "Triangle",
+        square: "Square",
+        isochronic: "Isochronic Pulses",
+        "pink-noise": "Pink Noise",
+        "brown-noise": "Brown Noise",
+        "green-noise": "Green Noise",
+      };
 
       function updateBeatLabels() {
         if (beatMinLabel) {
@@ -204,12 +235,24 @@
       function getCurrentFrequencies() {
         const carrier = parseFloat(carrierSlider.value);
         const beat = parseFloat(beatSlider.value);
-        const modeName = `${beat.toFixed(1)} Hz Beat`;
+        const waveform = waveformSelect.value;
+        const waveformLabel = waveformLabels[waveform] || waveform;
+        const modeName = `${waveformLabel} | ${beat.toFixed(1)} Hz Beat`;
 
         const channelLabel =
           channelPreference === "left" ? "Left Higher" : "Right Higher";
 
-        return { carrier, beat, modeName, channelLabel };
+        return { carrier, beat, modeName, channelLabel, waveform, waveformLabel };
+      }
+
+      function isNoiseWaveform(waveform) {
+        return ["pink-noise", "brown-noise", "green-noise"].includes(
+          waveform
+        );
+      }
+
+      function isIsochronicWaveform(waveform) {
+        return waveform === "isochronic";
       }
       function updateToneButton() {
         toggleToneButton.classList.remove(
@@ -254,7 +297,7 @@
 
       // Function to update the status display
       function updateStatus(state) {
-        const { carrier, beat, modeName, channelLabel } =
+        const { carrier, beat, modeName, channelLabel, waveform, waveformLabel } =
           getCurrentFrequencies();
 
         // Determine which ear is higher for status display
@@ -266,8 +309,21 @@
           1
         )} Hz`;
 
+        const baseStatus = isNoiseWaveform(waveform)
+          ? `${waveformLabel} (stereo)`
+          : earStatus;
+
         if (state === "playing") {
-          statusElement.textContent = `Status: Playing ${modeName}. ${earStatus}`;
+          if (isIsochronicWaveform(waveform)) {
+            statusElement.textContent =
+              `Status: Playing Isochronic pulses at ${beat.toFixed(
+                1
+              )} Hz. Carrier ${carrier} Hz.`;
+          } else if (isNoiseWaveform(waveform)) {
+            statusElement.textContent = `Status: Playing ${baseStatus}.`;
+          } else {
+            statusElement.textContent = `Status: Playing ${modeName}. ${baseStatus}`;
+          }
         } else {
           statusElement.textContent = `Status: Stopped. ${modeName}. Carrier ${carrier} Hz. (${channelLabel})`;
         }
@@ -284,14 +340,129 @@
         pannerL = new Tone.Panner(-1).toDestination(); // Left channel
         pannerR = new Tone.Panner(1).toDestination(); // Right channel
 
-        // 2. Create two separate oscillators (Sine wave is typical for these tones)
-        oscL = new Tone.Oscillator(0, "sine").connect(pannerL);
-        oscR = new Tone.Oscillator(0, "sine").connect(pannerR);
+        // 2. Create source placeholders; actual sources set per waveform
+      }
+
+      function disposeSources() {
+        const disposables = [
+          oscL,
+          oscR,
+          isoGainL,
+          isoGainR,
+          isoLfo,
+          noiseGainL,
+          noiseGainR,
+          noiseFilterL,
+          noiseFilterR,
+        ];
+
+        disposables.forEach((node) => {
+          if (node) {
+            if (typeof node.stop === "function") {
+              try {
+                node.stop();
+              } catch (e) {
+                // ignore stop errors for already-stopped nodes
+              }
+            }
+            node.dispose();
+          }
+        });
+
+        oscL = null;
+        oscR = null;
+        isoGainL = null;
+        isoGainR = null;
+        isoLfo = null;
+        noiseGainL = null;
+        noiseGainR = null;
+        noiseFilterL = null;
+        noiseFilterR = null;
+      }
+
+      function createWaveformSources() {
+        const { waveform, carrier, beat } = getCurrentFrequencies();
+
+        disposeSources();
+
+        if (isNoiseWaveform(waveform)) {
+          const noiseType =
+            waveform === "pink-noise"
+              ? "pink"
+              : waveform === "brown-noise"
+              ? "brown"
+              : "white";
+
+          const noiseSource = new Tone.Noise(noiseType);
+          noiseGainL = new Tone.Gain(0.5).connect(pannerL);
+          noiseGainR = new Tone.Gain(0.5).connect(pannerR);
+
+          if (waveform === "green-noise") {
+            // Green noise approximated via a band-pass filter in the mid frequencies
+            noiseFilterL = new Tone.Filter({
+              type: "bandpass",
+              frequency: 500,
+              Q: 1,
+            }).connect(noiseGainL);
+
+            noiseFilterR = new Tone.Filter({
+              type: "bandpass",
+              frequency: 500,
+              Q: 1,
+            }).connect(noiseGainR);
+
+            noiseSource.connect(noiseFilterL);
+            noiseSource.connect(noiseFilterR);
+          } else {
+            noiseSource.connect(noiseGainL);
+            noiseSource.connect(noiseGainR);
+          }
+
+          oscL = noiseSource;
+          oscR = noiseSource;
+        } else if (isIsochronicWaveform(waveform)) {
+          const baseOsc = new Tone.Oscillator(carrier, "sine");
+          isoGainL = new Tone.Gain(0).connect(pannerL);
+          isoGainR = new Tone.Gain(0).connect(pannerR);
+          isoLfo = new Tone.LFO({
+            type: "square",
+            frequency: beat,
+            min: 0,
+            max: 1,
+          });
+
+          baseOsc.connect(isoGainL);
+          baseOsc.connect(isoGainR);
+          isoLfo.connect(isoGainL.gain);
+          isoLfo.connect(isoGainR.gain);
+
+          oscL = baseOsc;
+          oscR = baseOsc;
+        } else {
+          oscL = new Tone.Oscillator(carrier, waveform).connect(pannerL);
+          oscR = new Tone.Oscillator(carrier, waveform).connect(pannerR);
+        }
       }
 
       // Function to calculate and set the frequencies based on the current selection
       function setFrequencies() {
-        const { carrier, beat, channelLabel } = getCurrentFrequencies();
+        const { carrier, beat, waveform } = getCurrentFrequencies();
+
+        if (isNoiseWaveform(waveform)) {
+          updateStatus(isPlaying ? "playing" : "stopped");
+          return;
+        }
+
+        if (isIsochronicWaveform(waveform)) {
+          if (oscL) {
+            oscL.frequency.setValueAtTime(carrier, Tone.context.currentTime);
+          }
+          if (isoLfo) {
+            isoLfo.frequency.setValueAtTime(beat, Tone.context.currentTime);
+          }
+          updateStatus("playing");
+          return;
+        }
 
         let freqL = carrier;
         let freqR = carrier;
@@ -318,12 +489,20 @@
         try {
           await Tone.start();
           setupTone();
+          createWaveformSources();
 
           setFrequencies();
 
           // Start the oscillators after setting the initial frequencies
-          oscL.start();
-          oscR.start();
+          if (isIsochronicWaveform(waveformSelect.value)) {
+            oscL.start();
+            isoLfo.start();
+          } else if (isNoiseWaveform(waveformSelect.value)) {
+            oscL.start();
+          } else {
+            oscL.start();
+            oscR.start();
+          }
           isPlaying = true;
 
           updateToneButton();
@@ -337,14 +516,14 @@
       function stopTone() {
         if (!isPlaying) return;
 
-        if (oscL) oscL.stop();
-        if (oscR) oscR.stop();
+        disposeSources();
 
         // Disconnect to clean up resources
-        if (oscL) oscL.dispose();
-        if (oscR) oscR.dispose();
         if (pannerL) pannerL.dispose();
         if (pannerR) pannerR.dispose();
+
+        pannerL = null;
+        pannerR = null;
 
         isPlaying = false;
         updateToneButton();
@@ -375,6 +554,27 @@
           setFrequencies();
         }
         updateStatus(isPlaying ? "playing" : "stopped");
+      });
+
+      waveformSelect.addEventListener("change", () => {
+        if (isPlaying) {
+          disposeSources();
+          setupTone();
+          createWaveformSources();
+          setFrequencies();
+
+          if (isIsochronicWaveform(waveformSelect.value)) {
+            oscL.start();
+            isoLfo.start();
+          } else if (isNoiseWaveform(waveformSelect.value)) {
+            oscL.start();
+          } else {
+            oscL.start();
+            oscR.start();
+          }
+        }
+        updateStatus(isPlaying ? "playing" : "stopped");
+        updateToneButton();
       });
 
       // Listener for Channel Preference Toggle
