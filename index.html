@@ -86,6 +86,25 @@
         cursor: pointer;
         box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
       }
+
+      .visual-indicator {
+        width: 120px;
+        height: 120px;
+        border-radius: 9999px;
+        margin: 0 auto;
+        background: radial-gradient(circle at 30% 30%, #a78bfa, #4c1d95);
+        opacity: 0.4;
+        transition: opacity 0.05s ease, transform 0.05s ease,
+          box-shadow 0.05s ease;
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.35);
+      }
+
+      .visual-indicator.flash-on {
+        opacity: 1;
+        transform: scale(1.05);
+        box-shadow: 0 0 35px rgba(196, 181, 253, 0.8),
+          0 0 70px rgba(99, 102, 241, 0.7);
+      }
     </style>
   </head>
   <body>
@@ -178,6 +197,16 @@
       <p id="status" class="text-center mt-6 text-yellow-300 font-medium">
         Status: Initializing...
       </p>
+
+      <div class="mt-8">
+        <h2 class="text-xl font-semibold mb-3 text-indigo-400 text-center">
+          Visual Beat Indicator
+        </h2>
+        <div id="visualIndicator" class="visual-indicator" aria-hidden="true"></div>
+        <p class="text-center mt-2 text-sm text-gray-400">
+          Flashes at the selected beat frequency.
+        </p>
+      </div>
     </div>
 
     <script>
@@ -200,6 +229,7 @@
       const channelToggleButton = document.getElementById("channelToggle");
       const toggleToneButton = document.getElementById("toggleToneButton");
       const waveformSelect = document.getElementById("waveformSelect");
+      const visualIndicator = document.getElementById("visualIndicator");
 
       const waveformLabels = {
         sine: "Sine",
@@ -210,6 +240,9 @@
         "brown-noise": "Brown Noise",
         "green-noise": "Green Noise",
       };
+
+      let flashIntervalId = null;
+      let flashTimeoutId = null;
 
       function updateBeatLabels() {
         if (beatMinLabel) {
@@ -482,6 +515,42 @@
         updateStatus("playing");
       }
 
+      function stopVisualFlashes() {
+        if (flashIntervalId) {
+          clearInterval(flashIntervalId);
+          flashIntervalId = null;
+        }
+        if (flashTimeoutId) {
+          clearTimeout(flashTimeoutId);
+          flashTimeoutId = null;
+        }
+        visualIndicator.classList.remove("flash-on");
+      }
+
+      function triggerVisualFlash(periodMs) {
+        visualIndicator.classList.add("flash-on");
+
+        const flashDuration = Math.max(40, periodMs * 0.35);
+        flashTimeoutId = setTimeout(() => {
+          visualIndicator.classList.remove("flash-on");
+        }, flashDuration);
+      }
+
+      function updateVisualFlashes() {
+        stopVisualFlashes();
+
+        if (!isPlaying) {
+          return;
+        }
+
+        const beat = parseFloat(beatSlider.value);
+        if (!beat || beat <= 0) return;
+
+        const periodMs = 1000 / beat;
+        triggerVisualFlash(periodMs);
+        flashIntervalId = setInterval(() => triggerVisualFlash(periodMs), periodMs);
+      }
+
       // Function to start the audio
       async function startTone() {
         if (isPlaying) return;
@@ -506,6 +575,7 @@
           isPlaying = true;
 
           updateToneButton();
+          updateVisualFlashes();
         } catch (error) {
           console.error("Error starting Tone.js:", error);
           statusElement.textContent = "Error starting audio. Check console.";
@@ -528,6 +598,7 @@
         isPlaying = false;
         updateToneButton();
         updateStatus("stopped"); // Update status on stop
+        stopVisualFlashes();
       }
 
       // --- Event Listeners ---
@@ -552,6 +623,7 @@
         updateBeatLabels();
         if (isPlaying) {
           setFrequencies();
+          updateVisualFlashes();
         }
         updateStatus(isPlaying ? "playing" : "stopped");
       });
@@ -575,6 +647,7 @@
         }
         updateStatus(isPlaying ? "playing" : "stopped");
         updateToneButton();
+        updateVisualFlashes();
       });
 
       // Listener for Channel Preference Toggle
